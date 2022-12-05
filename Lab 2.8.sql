@@ -89,22 +89,86 @@ JOIN actor a2
 ON fa2.actor_id = a2.actor_id;
 
 
+-- 8. Get all pairs of customers that have rented the same film more than 3 times.
+
+-- We create a temporary table to enter the film_id into the rentals.
+
+CREATE TEMPORARY TABLE t1 AS (
+SELECT i.film_id, r.rental_id, r.customer_id, r.inventory_id
+FROM rental r
+JOIN inventory i
+USING(inventory_id));
+-- We have to create it twice because the self-join doesn't work on the temporary table.
+CREATE TEMPORARY TABLE t2 AS (
+SELECT i.film_id, r.rental_id, r.customer_id, r.inventory_id
+FROM rental r
+JOIN inventory i
+USING(inventory_id));
+
+-- Solution for same copy of film (rental_id)
+SELECT count(t1.film_id) AS number_of_films, 
+concat(c1.first_name, " ",c1.last_name) AS customer1,
+concat(c2.first_name, " ",c2.last_name) AS customer2
+FROM t1
+JOIN t2
+ON t1.inventory_id = t2.inventory_id AND t1.customer_id > t2.customer_id
+JOIN customer c1
+ON c1.customer_id = t1.customer_id
+JOIN customer c2
+ON c2.customer_id = t2.customer_id
+GROUP BY t1.customer_id, t2.customer_id
+HAVING count(t1.film_id) > 3;
+
+-- Solution for same type of film (film_id)
+SELECT count(t1.film_id) AS number_of_films, 
+concat(c1.first_name, " ",c1.last_name) AS customer1,
+concat(c2.first_name, " ",c2.last_name) AS customer2
+FROM t1
+JOIN t2
+ON t1.film_id = t2.film_id AND t1.customer_id > t2.customer_id
+JOIN customer c1
+ON c1.customer_id = t1.customer_id
+JOIN customer c2
+ON c2.customer_id = t2.customer_id
+GROUP BY t1.customer_id, t2.customer_id
+HAVING count(t1.film_id) > 3;
+
+-- 9. For each film, list actor that has acted in more films.
+
+-- I understand the question, that we have to list for every film,
+-- the actor who acted in most films.
+DROP TEMPORARY TABLE ta2;
+-- Check how many times each actor has acted in movies
+CREATE TEMPORARY TABLE ta1 AS(
+SELECT actor_id, count(film_id) AS acted
+FROM film_actor
+GROUP BY actor_id
+);
+-- Check for each film what was the most times one of the actor has starred in films
+CREATE TEMPORARY TABLE ta2 AS(
+SELECT fa.film_id, max(ta1.acted) AS max_act
+	FROM film_actor fa
+	JOIN ta1
+	USING(actor_id)
+	GROUP BY film_id
+	ORDER BY film_id
+);
+
+-- Checking results
+select * from ta1;
+select * from ta2;
 
 
-
-select * from country;
-select * from store;
-select * from city;
-select * from film_category;
-select * from address;
-select * from rental;
-select * from customer;
-select* from film_actor;
-select * from actor;
-select * from film;
-select * from category;
-select * from film_category;
-select * from staff;
-select* from payment;
-select * from inventory;
-select* from film_actor;
+-- Joining the results with the film_actor table, getting the rows where the times
+-- acted and the maximum times acted are equal
+SELECT f.title, concat(a.first_name, " ",a.last_name) AS most_starred_actor
+FROM film_actor
+JOIN ta1
+USING(actor_id)
+JOIN ta2
+USING(film_id)
+JOIN film f
+USING(film_id)
+JOIN actor a
+USING(actor_id)
+WHERE acted = max_act;
